@@ -22,3 +22,8 @@
 4. Refine `01_research_question/research_question_brief.md`.
 5. Draft PAET schema in `03_method/paet_schema.md`.
 
+## Feasibility Review
+
+- Robot platform facts have been synchronized from GitHub.
+- PAET V1 feasibility has been assessed in `04_experiments/paet_feasibility_assessment.md`.
+- Current recommendation: proceed with a scoped V1 focused on LiDAR/map/localization-driven physical traversal tokens; defer robust human-group and language-conditioned waiting tokens to Phase 2.
