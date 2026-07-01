@@ -1,0 +1,2 @@
+experiment_id,date,experiment_type,status,protocol_path,environment,robot_platform,simulator,scenario,token_targets,baseline,metrics,config_path,data_path,result_path,random_seed,script_or_snapshot,privacy_review,reproducibility_status,notes
+

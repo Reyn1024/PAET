@@ -1,0 +1,52 @@
+# Operating system files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Editor and temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+~$*
+
+# LaTeX build artifacts
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.run.xml
+*.synctex.gz
+*.toc
+
+# Python caches
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Large or sensitive research data
+04_experiments/raw_data/
+04_experiments/processed_data/
+04_experiments/**/*.bag
+04_experiments/**/*.db3
+04_experiments/**/*.mcap
+04_experiments/**/*.mp4
+04_experiments/**/*.avi
+04_experiments/**/*.png
+04_experiments/**/*.jpg
+
+# Local Zotero/PDF export cache can be large; keep registry paths instead.
+02_literature/pdfs/
+
+# Build outputs
+build/
+dist/
+06_manuscript/build/
+
+# Local fallback snapshots are not committed after Git is available.
+snapshots/*
+!snapshots/README.md
