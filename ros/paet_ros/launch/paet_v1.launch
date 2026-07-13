@@ -1,0 +1,16 @@
+<launch>
+  <arg name="config" default="$(find paet_ros)/config/paet_v1.yaml" />
+  <arg name="use_fused_scan" default="true" />
+  <arg name="enable_logger" default="true" />
+
+  <rosparam command="load" file="$(arg config)" />
+
+  <node pkg="paet_ros" type="paet_geometry_tokenizer.py" name="paet_geometry_tokenizer" output="screen">
+    <param name="use_fused_scan" value="$(arg use_fused_scan)" />
+  </node>
+
+  <group if="$(arg enable_logger)">
+    <node pkg="paet_ros" type="paet_event_logger.py" name="paet_event_logger" output="screen" />
+  </group>
+</launch>
+

@@ -1,0 +1,37 @@
+frames:
+  global_frame: map
+  robot_frame: base_footprint
+
+topics:
+  map: /map
+  scan: /scan
+  fused_scan: /scan_ira
+  odom: /odom
+  global_plan: /move_base/GlobalPlanner/plan
+  move_base_status: /move_base/status
+
+robot:
+  footprint_width_m: 0.70
+  footprint_length_m: 0.90
+  safety_margin_m: 0.15
+
+doorway_narrow:
+  enabled: true
+  narrow_margin_threshold_m: 0.10
+  min_event_duration_s: 0.5
+  lookahead_distance_m: 1.5
+  forward_min_m: 0.15
+  side_limit_m: 2.0
+
+temporary_obstacle:
+  enabled: true
+  near_path_distance_m: 0.4
+  min_cluster_points: 8
+  min_event_duration_s: 1.0
+  static_free_threshold: 20
+  max_scan_range_m: 8.0
+
+logging:
+  run_id: paet_v1_dry_run
+  log_dir: ~/.ros/paet_logs
+
