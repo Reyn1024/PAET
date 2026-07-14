@@ -37,6 +37,7 @@ Each trial must record:
 - robot pose relative to the passage;
 - config file path and threshold/config version;
 - event CSV path;
+- actual stationary observation-window duration;
 - manual label for whether `doorway_narrow` should trigger;
 - scenario type: narrow, borderline, wide, open negative, or clutter negative.
 
@@ -160,6 +161,13 @@ absolute_width_error_m = abs(width_error_m)
 
 Use `observed_gap_width` parsed from the event CSV `reason` field.
 
+The merged logger preserves the final `reason` value for each segment. Therefore
+this protocol can report a terminal observed gap per segment, but it must not
+claim scan-level width variance or a per-scan mean from the merged CSV alone.
+Trials with no emitted event have no recorded observed-gap value; report their
+width error as unavailable, never as zero. A later diagnostic stream is needed
+to analyze the detector's internal gap estimate on missed or negative trials.
+
 Stability:
 
 - positive stationary trial should normally produce one merged event segment;
@@ -167,6 +175,12 @@ Stability:
 - absence of an event in a positive trial indicates a miss;
 - event duration should cover most of the stationary observation window after
   the detector's `min_event_duration_s`.
+
+The offline summary reports the recorded segment duration divided by the
+manifest's `observation_window_s`; interpret this as a diagnostic coverage
+ratio, not as navigation success. A ratio above `1.0` indicates that the
+recorded event and manually noted observation-window boundaries were misaligned
+and should be reviewed rather than silently clipped.
 
 False positives:
 
