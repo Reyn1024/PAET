@@ -112,6 +112,30 @@ For each physical location, vary only robot relative placement cautiously:
 
 Do not move the robot during a single trial window.
 
+## Inclusion And Exclusion Rules
+
+Freeze the run list and these rules before starting the full batch.
+
+Include every initiated trial that has:
+
+- the planned scenario and robot placement;
+- a unique `run_id`;
+- the required manual measurements and metadata;
+- an uninterrupted stationary observation window;
+- readable event and diagnostic CSV files from the intended configuration.
+
+A trial may be excluded only for a documented technical or protocol failure,
+such as a wrong `run_id`, missing/corrupt log, sensor or TF outage, door movement
+during the window, robot movement, or a safety interruption. Keep the excluded
+run's metadata and exclusion reason; never delete or overwrite it. Repeat it
+with a new `run_id` if the planned batch still needs that condition.
+
+Unexpected width estimates, misses, false positives, fragmented events, or
+results that disagree with the hypothesis are outcomes, not exclusion reasons.
+The preliminary `1.390 m` estimate from the smoke-stage setup remains pilot
+sensitivity evidence, although it is not one of the pre-registered full-batch
+trials.
+
 ## Run Command
 
 Use a unique `run_id` for every trial:

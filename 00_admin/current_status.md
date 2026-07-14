@@ -34,10 +34,11 @@
 
 ## Immediate Next Actions
 
-1. Run the full 15-trial stationary calibration: three each for narrow, borderline, wide, open-area negative, and clutter negative scenarios.
-2. For each trial, record unique `run_id`, manual width, robot relative placement, config/threshold version, event and diagnostic CSV paths, and the manual should-trigger label.
-3. Review placement sensitivity and width error before freezing doorway thresholds.
-4. Do not move the robot during a trial or compute task success rate from this calibration.
+1. Freeze the 15-run condition list and the protocol's inclusion/exclusion rules before further collection.
+2. Run three trials each for narrow, borderline, wide, open-area negative, and clutter negative scenarios.
+3. Retain every initiated run; document technical exclusions and repeat them under a new `run_id`, but never exclude an unexpected detector result.
+4. Record manual width, robot placement, config version, event and diagnostic paths, and manual label for every analyzed trial.
+5. Review placement sensitivity and width error before freezing thresholds or starting navigation-task experiments.
 
 ## Feasibility Review
 
