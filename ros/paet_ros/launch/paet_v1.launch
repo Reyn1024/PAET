@@ -2,6 +2,7 @@
   <arg name="config" default="$(find paet_ros)/config/paet_v1.yaml" />
   <arg name="use_fused_scan" default="true" />
   <arg name="enable_logger" default="true" />
+  <arg name="run_id" default="$(anon paet_v1)" />
 
   <rosparam command="load" file="$(arg config)" />
 
@@ -10,7 +11,8 @@
   </node>
 
   <group if="$(arg enable_logger)">
-    <node pkg="paet_ros" type="paet_event_logger.py" name="paet_event_logger" output="screen" />
+    <node pkg="paet_ros" type="paet_event_logger.py" name="paet_event_logger" output="screen">
+      <param name="run_id" value="$(arg run_id)" />
+    </node>
   </group>
 </launch>
-

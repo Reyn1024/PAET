@@ -42,10 +42,10 @@ catkin_install_python(PROGRAMS
   scripts/paet_geometry_tokenizer.py
   scripts/paet_event_logger.py
   scripts/paet_eval_helper.py
+  scripts/paet_logger_segment_validation.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
 install(DIRECTORY config launch
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
-

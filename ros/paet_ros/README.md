@@ -26,6 +26,13 @@ Start the normal robot navigation stack first. Then:
 roslaunch paet_ros paet_v1.launch
 ```
 
+Use a unique `run_id` for each trial to avoid appending different trials into
+the same log files:
+
+```bash
+roslaunch paet_ros paet_v1.launch run_id:=trial_$(date +%Y%m%d_%H%M%S)
+```
+
 Outputs:
 
 - `/paet/events`
@@ -39,6 +46,13 @@ Logs:
 The logger writes one row per merged event segment. Repeated updates for the
 same token are merged until the token has been absent for `logging.segment_gap_s`
 seconds, so sustained detections do not appear as scan-rate duplicates.
+
+Validate segment logging with synthetic events:
+
+```bash
+roscore
+rosrun paet_ros paet_logger_segment_validation.py
+```
 
 ## Safety
 
