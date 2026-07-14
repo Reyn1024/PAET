@@ -29,11 +29,11 @@
 
 ## Immediate Next Actions
 
-1. Validate segment logging on the robot: sub-gap merging, over-gap splitting, shutdown flush, and unique `run_id` handling.
-2. Run a stationary doorway-width calibration using measured wide, borderline, and narrow passages.
-3. Save event logs and ground-truth interval CSV files outside Git; register paths and run configuration in `experiment_registry.csv`.
-4. Check whether the current nearest-left/right scan rule produces false positives in open spaces and clutter.
-5. Run the `temporary_obstacle` smoke test only after doorway logging and labeling are confirmed.
+1. Run the stationary `doorway_narrow` geometry calibration protocol in `04_experiments/protocols/exp_v1_doorway_static_calibration.md`.
+2. For each trial, record unique `run_id`, manual width, robot relative placement, config/threshold version, event CSV path, and manual should-trigger label.
+3. Include negative controls for both open areas and cluttered non-doorway areas.
+4. Summarize width error, event-segment stability, and false positives with `tools/evaluate_doorway_static_calibration.py`.
+5. Do not move the robot or compute task success rate until the static geometry calibration is reviewed.
 
 ## Feasibility Review
 
