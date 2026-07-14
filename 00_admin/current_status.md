@@ -24,10 +24,12 @@
 - One live `doorway_narrow` event and corresponding marker were observed.
 - This is integration evidence only. It does not establish precision, recall, F1, or detector validity.
 - The observed clearance margin was `-0.004 m`, so the sample is especially sensitive to scan noise, footprint calibration, and threshold choice.
+- Commit `9a37b2b` added scan-rate event merging: one CSV/JSONL row now represents one event segment, with a default `0.75 s` gap threshold.
+- The segment logger passes local syntax checks; robot-side boundary validation is still required before metric collection.
 
 ## Immediate Next Actions
 
-1. Define event-episode boundaries and merge repeated scan-rate publications before computing event-level metrics.
+1. Validate segment logging on the robot: sub-gap merging, over-gap splitting, shutdown flush, and unique `run_id` handling.
 2. Run a stationary doorway-width calibration using measured wide, borderline, and narrow passages.
 3. Save event logs and ground-truth interval CSV files outside Git; register paths and run configuration in `experiment_registry.csv`.
 4. Check whether the current nearest-left/right scan rule produces false positives in open spaces and clutter.
