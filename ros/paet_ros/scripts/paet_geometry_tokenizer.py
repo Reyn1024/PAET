@@ -17,7 +17,7 @@ from nav_msgs.msg import OccupancyGrid, Path
 from sensor_msgs.msg import LaserScan
 from visualization_msgs.msg import Marker, MarkerArray
 
-from paet_ros.msg import PAETEvent, PAETEventArray
+from paet_ros.msg import DoorwayGapDiagnostic, PAETEvent, PAETEventArray
 
 
 def clamp(value, low, high):
@@ -71,6 +71,7 @@ class PAETGeometryTokenizer:
 
         self.global_frame = rospy.get_param("~global_frame", rospy.get_param("/frames/global_frame", "map"))
         self.robot_frame = rospy.get_param("~robot_frame", rospy.get_param("/frames/robot_frame", "base_footprint"))
+        self.run_id = rospy.get_param("~run_id", "paet_v1_run")
 
         topics = rospy.get_param("/topics", {})
         self.map_topic = topics.get("map", "/map")
@@ -108,6 +109,11 @@ class PAETGeometryTokenizer:
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
         self.events_pub = rospy.Publisher("/paet/events", PAETEventArray, queue_size=10)
+        self.doorway_gap_pub = rospy.Publisher(
+            "/paet/doorway_gap_diagnostics",
+            DoorwayGapDiagnostic,
+            queue_size=50,
+        )
         self.marker_pub = rospy.Publisher("/paet/debug_markers", MarkerArray, queue_size=10)
 
         rospy.Subscriber(self.map_topic, OccupancyGrid, self.on_map, queue_size=1)
@@ -134,8 +140,9 @@ class PAETGeometryTokenizer:
         base_points = self.scan_points_in_frame(msg, self.robot_frame)
         map_points = self.scan_points_in_frame(msg, self.global_frame)
 
-        if self.dn_enabled and base_points:
-            event = self.detect_doorway_narrow(now, base_points)
+        if self.dn_enabled:
+            event, diagnostic = self.detect_doorway_narrow(now, base_points)
+            self.doorway_gap_pub.publish(diagnostic)
             if event:
                 events.append(event)
 
@@ -187,7 +194,13 @@ class PAETGeometryTokenizer:
 
         if not left or not right:
             self.clear_event("doorway_narrow")
-            return None
+            return None, self.make_doorway_gap_diagnostic(
+                now=now,
+                estimate_valid=False,
+                left_count=len(left),
+                right_count=len(right),
+                decision="no_valid_gap",
+            )
 
         left_wall = min(left)
         right_wall = max(right)
@@ -197,7 +210,18 @@ class PAETGeometryTokenizer:
 
         if clearance_margin >= self.narrow_margin_threshold:
             self.clear_event("doorway_narrow")
-            return None
+            return None, self.make_doorway_gap_diagnostic(
+                now=now,
+                estimate_valid=True,
+                observed_gap=observed_gap,
+                left_wall=left_wall,
+                right_wall=right_wall,
+                left_count=len(left),
+                right_count=len(right),
+                clearance_margin=clearance_margin,
+                narrow_condition=False,
+                decision="width_above_threshold",
+            )
 
         confidence = clamp(
             (required_width + self.narrow_margin_threshold - observed_gap) / max(self.narrow_margin_threshold, 1e-6),
@@ -206,7 +230,18 @@ class PAETGeometryTokenizer:
         )
         active = self.update_event("doorway_narrow", now)
         if (now - active.start_time).to_sec() < self.dn_min_duration:
-            return None
+            return None, self.make_doorway_gap_diagnostic(
+                now=now,
+                estimate_valid=True,
+                observed_gap=observed_gap,
+                left_wall=left_wall,
+                right_wall=right_wall,
+                left_count=len(left),
+                right_count=len(right),
+                clearance_margin=clearance_margin,
+                narrow_condition=True,
+                decision="min_duration_pending",
+            )
 
         anchor = self.robot_anchor_in_map()
         reason = "observed_gap_width=%.3f required_width=%.3f clearance_margin=%.3f" % (
@@ -214,7 +249,7 @@ class PAETGeometryTokenizer:
             required_width,
             clearance_margin,
         )
-        return self.make_event(
+        event = self.make_event(
             token="doorway_narrow",
             confidence=confidence,
             anchor=anchor,
@@ -228,6 +263,55 @@ class PAETGeometryTokenizer:
             reject=confidence > 0.85,
             reason=reason,
         )
+        diagnostic = self.make_doorway_gap_diagnostic(
+            now=now,
+            estimate_valid=True,
+            observed_gap=observed_gap,
+            left_wall=left_wall,
+            right_wall=right_wall,
+            left_count=len(left),
+            right_count=len(right),
+            clearance_margin=clearance_margin,
+            narrow_condition=True,
+            token_triggered=True,
+            decision="token_triggered",
+        )
+        return event, diagnostic
+
+    def make_doorway_gap_diagnostic(
+        self,
+        now,
+        estimate_valid,
+        left_count,
+        right_count,
+        decision,
+        observed_gap=float("nan"),
+        left_wall=float("nan"),
+        right_wall=float("nan"),
+        clearance_margin=float("nan"),
+        narrow_condition=False,
+        token_triggered=False,
+    ):
+        required_width = self.robot_width + 2.0 * self.safety_margin
+        diagnostic = DoorwayGapDiagnostic()
+        diagnostic.header.stamp = now
+        diagnostic.header.frame_id = self.robot_frame
+        diagnostic.run_id = self.run_id
+        diagnostic.estimate_valid = bool(estimate_valid)
+        diagnostic.estimated_width_m = float(observed_gap)
+        diagnostic.left_boundary_y_m = float(left_wall)
+        diagnostic.right_boundary_y_m = float(right_wall)
+        diagnostic.left_point_count = int(left_count)
+        diagnostic.right_point_count = int(right_count)
+        diagnostic.required_width_m = float(required_width)
+        diagnostic.narrow_margin_threshold_m = float(self.narrow_margin_threshold)
+        diagnostic.trigger_threshold_width_m = float(required_width + self.narrow_margin_threshold)
+        diagnostic.clearance_margin_m = float(clearance_margin)
+        diagnostic.min_event_duration_s = float(self.dn_min_duration)
+        diagnostic.narrow_condition = bool(narrow_condition)
+        diagnostic.token_triggered = bool(token_triggered)
+        diagnostic.decision = decision
+        return diagnostic
 
     def detect_temporary_obstacle(self, now, map_points):
         with self.lock:
@@ -365,4 +449,3 @@ class PAETGeometryTokenizer:
 
 if __name__ == "__main__":
     PAETGeometryTokenizer().spin()
-

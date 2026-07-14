@@ -28,13 +28,14 @@
 - Commit `7dee88b` added unique launch-time `run_id` values and a synthetic ROS validation helper.
 - Robot-side logger validation passed continuous merging, sub-gap merging, over-gap splitting, shutdown flush, unique `run_id`, and catkin build checks.
 - These checks validate logging semantics only; they do not provide token-detection performance evidence.
+- A scan-rate doorway-gap diagnostic stream and CSV logger are implemented locally and await robot-side build/runtime validation before calibration data collection.
 
 ## Immediate Next Actions
 
-1. Run the stationary `doorway_narrow` geometry calibration protocol in `04_experiments/protocols/exp_v1_doorway_static_calibration.md`.
-2. For each trial, record unique `run_id`, manual width, robot relative placement, config/threshold version, event CSV path, and manual should-trigger label.
-3. Include negative controls for both open areas and cluttered non-doorway areas.
-4. Summarize width error, event-segment stability, and false positives with `tools/evaluate_doorway_static_calibration.py`.
+1. Build and run the synthetic doorway-gap diagnostic validation on the robot.
+2. Run three short stationary smoke trials: narrow passage, wide passage, and open-area negative.
+3. Confirm the diagnostic CSV explains valid estimates, threshold decisions, and missing estimates before collecting the full 15-trial batch.
+4. For each accepted trial, record unique `run_id`, manual width, robot relative placement, config/threshold version, event and diagnostic CSV paths, and the manual should-trigger label.
 5. Do not move the robot, freeze thresholds, or compute task success rate until the static geometry calibration is reviewed.
 
 ## Feasibility Review

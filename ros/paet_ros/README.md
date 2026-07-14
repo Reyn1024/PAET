@@ -36,22 +36,31 @@ roslaunch paet_ros paet_v1.launch run_id:=trial_$(date +%Y%m%d_%H%M%S)
 Outputs:
 
 - `/paet/events`
+- `/paet/doorway_gap_diagnostics`
 - `/paet/debug_markers`
 
 Logs:
 
 - `~/.ros/paet_logs/<run_id>_events.csv`
 - `~/.ros/paet_logs/<run_id>_events.jsonl`
+- `~/.ros/paet_logs/<run_id>_doorway_gap.csv`
 
 The logger writes one row per merged event segment. Repeated updates for the
 same token are merged until the token has been absent for `logging.segment_gap_s`
 seconds, so sustained detections do not appear as scan-rate duplicates.
+
+The doorway-gap CSV is intentionally scan-rate diagnostic data. It records a
+row even when no token is emitted, distinguishing an invalid gap estimate,
+a valid width above the trigger threshold, the minimum-duration waiting period,
+and an emitted token. Invalid estimates have blank geometry fields and
+`estimate_valid=False`; do not interpret them as zero-width gaps.
 
 Validate segment logging with synthetic events:
 
 ```bash
 roscore
 rosrun paet_ros paet_logger_segment_validation.py
+rosrun paet_ros paet_doorway_gap_validation.py
 ```
 
 ## Safety
@@ -68,6 +77,8 @@ V1 is read-only:
 ```bash
 rostopic echo /paet/events
 rostopic hz /paet/events
+rostopic echo /paet/doorway_gap_diagnostics
+rostopic hz /paet/doorway_gap_diagnostics
 rosrun rviz rviz
 ```
 

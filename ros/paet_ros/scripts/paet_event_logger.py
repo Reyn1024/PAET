@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Metadata-only logger for PAET events."""
+"""Metadata-only logger for PAET events and doorway-gap diagnostics."""
 
 import csv
 import json
+import math
 import os
 import threading
 from dataclasses import dataclass, field
@@ -10,7 +11,33 @@ from pathlib import Path
 
 import rospy
 
-from paet_ros.msg import PAETEventArray
+from paet_ros.msg import DoorwayGapDiagnostic, PAETEventArray
+
+
+DOORWAY_GAP_FIELDS = [
+    "timestamp",
+    "run_id",
+    "frame_id",
+    "estimate_valid",
+    "estimated_width_m",
+    "left_boundary_y_m",
+    "right_boundary_y_m",
+    "left_point_count",
+    "right_point_count",
+    "required_width_m",
+    "narrow_margin_threshold_m",
+    "trigger_threshold_width_m",
+    "clearance_margin_m",
+    "min_event_duration_s",
+    "narrow_condition",
+    "token_triggered",
+    "decision",
+]
+
+
+def finite_or_blank(value):
+    value = float(value)
+    return value if math.isfinite(value) else ""
 
 
 @dataclass
@@ -85,9 +112,11 @@ class PAETEventLogger:
 
         self.csv_path = self.log_dir / ("%s_events.csv" % self.run_id)
         self.jsonl_path = self.log_dir / ("%s_events.jsonl" % self.run_id)
+        self.doorway_gap_csv_path = self.log_dir / ("%s_doorway_gap.csv" % self.run_id)
 
         self.csv_file = self.csv_path.open("a", newline="", encoding="utf-8")
         self.jsonl_file = self.jsonl_path.open("a", encoding="utf-8")
+        self.doorway_gap_csv_file = self.doorway_gap_csv_path.open("a", newline="", encoding="utf-8")
         self.writer = csv.DictWriter(
             self.csv_file,
             fieldnames=[
@@ -113,13 +142,28 @@ class PAETEventLogger:
             self.writer.writeheader()
             self.csv_file.flush()
 
+        self.doorway_gap_writer = csv.DictWriter(
+            self.doorway_gap_csv_file,
+            fieldnames=DOORWAY_GAP_FIELDS,
+        )
+        if self.doorway_gap_csv_path.stat().st_size == 0:
+            self.doorway_gap_writer.writeheader()
+            self.doorway_gap_csv_file.flush()
+
         rospy.Subscriber("/paet/events", PAETEventArray, self.on_events, queue_size=50)
+        rospy.Subscriber(
+            "/paet/doorway_gap_diagnostics",
+            DoorwayGapDiagnostic,
+            self.on_doorway_gap,
+            queue_size=200,
+        )
         self.flush_timer = rospy.Timer(rospy.Duration(0.25), self.flush_inactive_segments)
         rospy.on_shutdown(self.close)
         rospy.loginfo(
-            "PAET event logger writing event segments to %s and %s; segment_gap_s=%.3f",
+            "PAET logger writing event segments to %s and %s and doorway-gap diagnostics to %s; segment_gap_s=%.3f",
             self.csv_path,
             self.jsonl_path,
+            self.doorway_gap_csv_path,
             self.segment_gap_s,
         )
 
@@ -139,6 +183,40 @@ class PAETEventLogger:
                     self.active_segments[event.token] = EventSegment.from_event(event)
                 else:
                     segment.update(event)
+
+    def on_doorway_gap(self, msg):
+        with self.lock:
+            if self.closed:
+                return
+            if msg.run_id != self.run_id:
+                rospy.logerr_throttle(
+                    5.0,
+                    "Ignoring doorway-gap diagnostic with run_id=%s; logger run_id=%s",
+                    msg.run_id,
+                    self.run_id,
+                )
+                return
+            row = {
+                "timestamp": msg.header.stamp.to_sec(),
+                "run_id": self.run_id,
+                "frame_id": msg.header.frame_id,
+                "estimate_valid": bool(msg.estimate_valid),
+                "estimated_width_m": finite_or_blank(msg.estimated_width_m),
+                "left_boundary_y_m": finite_or_blank(msg.left_boundary_y_m),
+                "right_boundary_y_m": finite_or_blank(msg.right_boundary_y_m),
+                "left_point_count": int(msg.left_point_count),
+                "right_point_count": int(msg.right_point_count),
+                "required_width_m": finite_or_blank(msg.required_width_m),
+                "narrow_margin_threshold_m": finite_or_blank(msg.narrow_margin_threshold_m),
+                "trigger_threshold_width_m": finite_or_blank(msg.trigger_threshold_width_m),
+                "clearance_margin_m": finite_or_blank(msg.clearance_margin_m),
+                "min_event_duration_s": finite_or_blank(msg.min_event_duration_s),
+                "narrow_condition": bool(msg.narrow_condition),
+                "token_triggered": bool(msg.token_triggered),
+                "decision": msg.decision,
+            }
+            self.doorway_gap_writer.writerow(row)
+            self.doorway_gap_csv_file.flush()
 
     def flush_inactive_segments(self, _event=None):
         now = rospy.Time.now().to_sec()
@@ -187,6 +265,7 @@ class PAETEventLogger:
             try:
                 self.csv_file.close()
                 self.jsonl_file.close()
+                self.doorway_gap_csv_file.close()
             except Exception:
                 pass
 

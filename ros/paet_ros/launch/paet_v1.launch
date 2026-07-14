@@ -3,16 +3,21 @@
   <arg name="use_fused_scan" default="true" />
   <arg name="enable_logger" default="true" />
   <arg name="run_id" default="$(anon paet_v1)" />
+  <arg name="log_dir" default="$(env HOME)/.ros/paet_logs" />
+  <arg name="segment_gap_s" default="0.75" />
 
   <rosparam command="load" file="$(arg config)" />
 
   <node pkg="paet_ros" type="paet_geometry_tokenizer.py" name="paet_geometry_tokenizer" output="screen">
     <param name="use_fused_scan" value="$(arg use_fused_scan)" />
+    <param name="run_id" value="$(arg run_id)" />
   </node>
 
   <group if="$(arg enable_logger)">
     <node pkg="paet_ros" type="paet_event_logger.py" name="paet_event_logger" output="screen">
       <param name="run_id" value="$(arg run_id)" />
+      <param name="log_dir" value="$(arg log_dir)" />
+      <param name="segment_gap_s" value="$(arg segment_gap_s)" />
     </node>
   </group>
 </launch>

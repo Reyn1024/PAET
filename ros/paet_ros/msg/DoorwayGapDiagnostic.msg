@@ -1,0 +1,16 @@
+std_msgs/Header header
+string run_id
+bool estimate_valid
+float32 estimated_width_m
+float32 left_boundary_y_m
+float32 right_boundary_y_m
+uint32 left_point_count
+uint32 right_point_count
+float32 required_width_m
+float32 narrow_margin_threshold_m
+float32 trigger_threshold_width_m
+float32 clearance_margin_m
+float32 min_event_duration_s
+bool narrow_condition
+bool token_triggered
+string decision

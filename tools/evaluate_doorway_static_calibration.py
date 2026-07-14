@@ -3,15 +3,36 @@
 
 import argparse
 import csv
-import re
+import math
+from collections import Counter
 from pathlib import Path
 
 
-OBSERVED_GAP_RE = re.compile(r"observed_gap_width=([-+]?[0-9]*\.?[0-9]+)")
 TRUE_VALUES = {"1", "true", "yes", "y", "trigger"}
 FALSE_VALUES = {"0", "false", "no", "n", "no_trigger"}
 PASSAGE_SCENARIOS = {"narrow", "borderline", "wide"}
 ALLOWED_SCENARIOS = PASSAGE_SCENARIOS | {"open_negative", "clutter_negative"}
+DIAGNOSTIC_DECISIONS = {
+    "no_valid_gap",
+    "width_above_threshold",
+    "min_duration_pending",
+    "token_triggered",
+}
+DIAGNOSTIC_REQUIRED_FIELDS = {
+    "timestamp",
+    "run_id",
+    "estimate_valid",
+    "estimated_width_m",
+    "left_boundary_y_m",
+    "right_boundary_y_m",
+    "required_width_m",
+    "narrow_margin_threshold_m",
+    "trigger_threshold_width_m",
+    "clearance_margin_m",
+    "narrow_condition",
+    "token_triggered",
+    "decision",
+}
 
 
 def parse_bool(value, field_name, trial_id):
@@ -30,14 +51,10 @@ def parse_float(value):
     value = str(value).strip()
     if not value:
         return None
-    return float(value)
-
-
-def parse_observed_gap(reason):
-    match = OBSERVED_GAP_RE.search(reason or "")
-    if not match:
-        return None
-    return float(match.group(1))
+    parsed = float(value)
+    if not math.isfinite(parsed):
+        raise ValueError("non-finite numeric value %r" % value)
+    return parsed
 
 
 def read_event_segments(path, expected_run_id, trial_id):
@@ -55,6 +72,106 @@ def read_event_segments(path, expected_run_id, trial_id):
             (trial_id, expected_run_id, wrong_run_ids)
         )
     return [row for row in rows if row.get("token") == "doorway_narrow"]
+
+
+def read_diagnostics(path, expected_run_id, trial_id):
+    if not str(path).strip():
+        raise ValueError("trial %s has an empty diagnostic_csv_path" % trial_id)
+    diagnostic_path = Path(path).expanduser()
+    if not diagnostic_path.is_file():
+        raise ValueError(
+            "trial %s diagnostic CSV does not exist: %s" % (trial_id, diagnostic_path)
+        )
+    with diagnostic_path.open(newline="", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        fields = set(reader.fieldnames or [])
+        missing_fields = sorted(DIAGNOSTIC_REQUIRED_FIELDS - fields)
+        if missing_fields:
+            raise ValueError(
+                "trial %s diagnostic CSV is missing fields: %s" %
+                (trial_id, ", ".join(missing_fields))
+            )
+        rows = list(reader)
+    if not rows:
+        raise ValueError("trial %s diagnostic CSV has no samples" % trial_id)
+
+    wrong_run_ids = sorted({
+        row.get("run_id", "") for row in rows
+        if row.get("run_id", "") != expected_run_id
+    })
+    if wrong_run_ids:
+        raise ValueError(
+            "trial %s expected run_id %s but diagnostic CSV contains %s" %
+            (trial_id, expected_run_id, wrong_run_ids)
+        )
+
+    previous_timestamp = None
+    parsed_rows = []
+    for index, row in enumerate(rows, start=2):
+        try:
+            timestamp = parse_float(row.get("timestamp", ""))
+            if timestamp is None:
+                raise ValueError("missing timestamp")
+            if previous_timestamp is not None and timestamp < previous_timestamp:
+                raise ValueError("timestamps are not monotonic")
+            previous_timestamp = timestamp
+
+            estimate_valid = parse_bool(row.get("estimate_valid", ""), "estimate_valid", trial_id)
+            narrow_condition = parse_bool(row.get("narrow_condition", ""), "narrow_condition", trial_id)
+            token_triggered = parse_bool(row.get("token_triggered", ""), "token_triggered", trial_id)
+            decision = row.get("decision", "").strip()
+            if decision not in DIAGNOSTIC_DECISIONS:
+                raise ValueError("unsupported decision=%r" % decision)
+
+            width = parse_float(row.get("estimated_width_m", ""))
+            left = parse_float(row.get("left_boundary_y_m", ""))
+            right = parse_float(row.get("right_boundary_y_m", ""))
+            required_width = parse_float(row.get("required_width_m", ""))
+            threshold = parse_float(row.get("narrow_margin_threshold_m", ""))
+            trigger_width = parse_float(row.get("trigger_threshold_width_m", ""))
+            clearance = parse_float(row.get("clearance_margin_m", ""))
+
+            if required_width is None or threshold is None or trigger_width is None:
+                raise ValueError("missing threshold geometry")
+            if not math.isclose(trigger_width, required_width + threshold, abs_tol=1e-4):
+                raise ValueError("inconsistent trigger_threshold_width_m")
+            if estimate_valid:
+                if None in (width, left, right, clearance):
+                    raise ValueError("valid estimate has blank geometry")
+                if not math.isclose(width, left - right, abs_tol=1e-4):
+                    raise ValueError("estimated width does not match boundaries")
+                if not math.isclose(clearance, width - required_width, abs_tol=1e-4):
+                    raise ValueError("clearance margin does not match width")
+                expected_narrow = clearance < threshold
+                if narrow_condition != expected_narrow:
+                    raise ValueError("narrow_condition disagrees with threshold rule")
+                if decision == "no_valid_gap":
+                    raise ValueError("valid estimate uses no_valid_gap decision")
+                if not narrow_condition:
+                    if token_triggered or decision != "width_above_threshold":
+                        raise ValueError("non-narrow estimate has inconsistent decision flags")
+                elif token_triggered != (decision == "token_triggered"):
+                    raise ValueError("narrow estimate has inconsistent decision flags")
+                elif decision not in {"min_duration_pending", "token_triggered"}:
+                    raise ValueError("narrow estimate has inconsistent decision")
+            else:
+                if any(value is not None for value in (width, left, right, clearance)):
+                    raise ValueError("invalid estimate must have blank geometry")
+                if narrow_condition or token_triggered or decision != "no_valid_gap":
+                    raise ValueError("invalid estimate has inconsistent decision flags")
+            parsed_rows.append({
+                "timestamp": timestamp,
+                "estimate_valid": estimate_valid,
+                "estimated_width_m": width,
+                "narrow_condition": narrow_condition,
+                "token_triggered": token_triggered,
+                "decision": decision,
+            })
+        except ValueError as exc:
+            raise ValueError(
+                "trial %s diagnostic CSV row %d: %s" % (trial_id, index, exc)
+            ) from exc
+    return parsed_rows
 
 
 def summarize_trial(trial):
@@ -79,11 +196,21 @@ def summarize_trial(trial):
         raise ValueError("trial %s requires positive observation_window_s" % trial_id)
 
     segments = read_event_segments(trial.get("event_csv_path", ""), run_id, trial_id)
+    diagnostics = read_diagnostics(
+        trial.get("diagnostic_csv_path", ""),
+        run_id,
+        trial_id,
+    )
     triggered = len(segments) > 0
+    diagnostic_triggered = any(row["token_triggered"] for row in diagnostics)
+    if triggered != diagnostic_triggered:
+        raise ValueError(
+            "trial %s event and diagnostic logs disagree about token triggering" % trial_id
+        )
     observed_gaps = [
-        gap for gap in (parse_observed_gap(segment.get("reason", "")) for segment in segments)
-        if gap is not None
+        row["estimated_width_m"] for row in diagnostics if row["estimate_valid"]
     ]
+    decision_counts = Counter(row["decision"] for row in diagnostics)
 
     width_error_values = []
     if measured_width is not None:
@@ -114,14 +241,24 @@ def summarize_trial(trial):
         "fragmented_static_event": fragmented,
         "false_positive": false_positive,
         "missed_positive": missed_positive,
+        "diagnostic_sample_count": len(diagnostics),
+        "valid_estimate_count": len(observed_gaps),
+        "valid_estimate_ratio": len(observed_gaps) / len(diagnostics),
+        "no_valid_gap_count": decision_counts["no_valid_gap"],
+        "width_above_threshold_count": decision_counts["width_above_threshold"],
+        "min_duration_pending_count": decision_counts["min_duration_pending"],
+        "token_triggered_sample_count": decision_counts["token_triggered"],
         "measured_width_m": measured_width,
         "observed_gap_width_m": sum(observed_gaps) / len(observed_gaps) if observed_gaps else None,
+        "observed_gap_min_m": min(observed_gaps) if observed_gaps else None,
+        "observed_gap_max_m": max(observed_gaps) if observed_gaps else None,
         "width_error_m": sum(width_error_values) / len(width_error_values) if width_error_values else None,
         "absolute_width_error_m": sum(abs(value) for value in width_error_values) / len(width_error_values) if width_error_values else None,
         "event_duration_s": total_event_duration,
         "observation_window_s": observation_window,
         "event_coverage_ratio": total_event_duration / observation_window,
         "event_csv_path": trial.get("event_csv_path", ""),
+        "diagnostic_csv_path": trial.get("diagnostic_csv_path", ""),
         "notes": trial.get("operator_notes", ""),
     }
 
@@ -138,14 +275,24 @@ def write_summary(rows, output_path):
         "fragmented_static_event",
         "false_positive",
         "missed_positive",
+        "diagnostic_sample_count",
+        "valid_estimate_count",
+        "valid_estimate_ratio",
+        "no_valid_gap_count",
+        "width_above_threshold_count",
+        "min_duration_pending_count",
+        "token_triggered_sample_count",
         "measured_width_m",
         "observed_gap_width_m",
+        "observed_gap_min_m",
+        "observed_gap_max_m",
         "width_error_m",
         "absolute_width_error_m",
         "event_duration_s",
         "observation_window_s",
         "event_coverage_ratio",
         "event_csv_path",
+        "diagnostic_csv_path",
         "notes",
     ]
     with Path(output_path).open("w", newline="", encoding="utf-8") as f:

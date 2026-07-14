@@ -37,6 +37,7 @@ Each trial must record:
 - robot pose relative to the passage;
 - config file path and threshold/config version;
 - event CSV path;
+- doorway-gap diagnostic CSV path;
 - actual stationary observation-window duration;
 - manual label for whether `doorway_narrow` should trigger;
 - scenario type: narrow, borderline, wide, open negative, or clutter negative.
@@ -82,7 +83,18 @@ Negative controls:
 
 ## Minimum Trial Set
 
-Recommended first calibration batch:
+Do not begin the full batch immediately after deploying a new tokenizer build.
+First run one short smoke trial each in a narrow passage, a wide passage, and an
+open area. Confirm that:
+
+- the event and doorway-gap CSV files use the intended unique `run_id`;
+- diagnostic rows arrive throughout the stationary observation window;
+- valid wide estimates report `width_above_threshold` without an event;
+- narrow estimates transition from `min_duration_pending` to `token_triggered`;
+- open areas report `no_valid_gap` rather than a fabricated zero-width gap;
+- `tools/evaluate_doorway_static_calibration.py` accepts the three-file set.
+
+Only after this smoke gate passes, collect the recommended calibration batch:
 
 | Scenario type | Minimum count | Label |
 | --- | ---: | --- |
@@ -113,6 +125,7 @@ Record the resulting log path:
 
 ```text
 ~/.ros/paet_logs/<run_id>_events.csv
+~/.ros/paet_logs/<run_id>_doorway_gap.csv
 ```
 
 ## Trial Duration
@@ -159,14 +172,12 @@ width_error_m = observed_gap_width_m - measured_width_m
 absolute_width_error_m = abs(width_error_m)
 ```
 
-Use `observed_gap_width` parsed from the event CSV `reason` field.
-
-The merged logger preserves the final `reason` value for each segment. Therefore
-this protocol can report a terminal observed gap per segment, but it must not
-claim scan-level width variance or a per-scan mean from the merged CSV alone.
-Trials with no emitted event have no recorded observed-gap value; report their
-width error as unavailable, never as zero. A later diagnostic stream is needed
-to analyze the detector's internal gap estimate on missed or negative trials.
+Use valid `estimated_width_m` rows from the doorway-gap diagnostic CSV. The
+summary reports their mean and width-error statistics independently of whether
+the token fired. Rows with `estimate_valid=False` describe a missing geometric
+estimate; their blank width fields must never be interpreted as zero. Review
+the diagnostic `decision` counts to distinguish `no_valid_gap`,
+`width_above_threshold`, `min_duration_pending`, and `token_triggered`.
 
 Stability:
 
@@ -210,6 +221,7 @@ sanitized aggregate results when appropriate.
 - Every trial has a measured width or a documented negative-control reason.
 - Every trial records robot relative placement.
 - Every trial points to an event CSV path outside Git.
+- Every trial points to a doorway-gap diagnostic CSV path outside Git.
 - Negative controls include both open area and clutter area.
 - Summary table reports width error, segment count, trigger agreement, and
   false-positive status.
