@@ -26,5 +26,6 @@ Start here:
 
 Current infrastructure note:
 
-- Git was not available in the current shell when this scaffold was created. Use `snapshots/` for stage backups until Git is installed and initialized.
-
+- Git and GitHub synchronization are active on branch `main`.
+- The ROS 1 Noetic package under `ros/paet_ros` has passed robot-side build and runtime integration validation.
+- See `00_admin/current_status.md` for the current research stage and next actions.
