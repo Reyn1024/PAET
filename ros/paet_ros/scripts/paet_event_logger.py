@@ -4,6 +4,7 @@
 import csv
 import json
 import os
+import threading
 from pathlib import Path
 
 import rospy
@@ -14,6 +15,8 @@ from paet_ros.msg import PAETEventArray
 class PAETEventLogger:
     def __init__(self):
         rospy.init_node("paet_event_logger")
+        self.closed = False
+        self.lock = threading.Lock()
 
         logging_cfg = rospy.get_param("/logging", {})
         self.run_id = rospy.get_param("~run_id", logging_cfg.get("run_id", "paet_v1_run"))
@@ -56,36 +59,41 @@ class PAETEventLogger:
         rospy.loginfo("PAET event logger writing to %s and %s", self.csv_path, self.jsonl_path)
 
     def on_events(self, msg):
-        for event in msg.events:
-            row = {
-                "timestamp": event.header.stamp.to_sec(),
-                "run_id": self.run_id,
-                "token": event.token,
-                "confidence": event.confidence,
-                "x": event.spatial_anchor.x,
-                "y": event.spatial_anchor.y,
-                "z": event.spatial_anchor.z,
-                "radius": event.radius,
-                "start_time": event.start_time.to_sec(),
-                "end_time": event.end_time.to_sec(),
-                "evidence_channels": ";".join(event.evidence_channels),
-                "risk_delta": event.risk_delta,
-                "wait_recommended": event.wait_recommended,
-                "detour_recommended": event.detour_recommended,
-                "reject_recommended": event.reject_recommended,
-                "reason": event.reason,
-            }
-            self.writer.writerow(row)
-            self.jsonl_file.write(json.dumps(row, ensure_ascii=True) + "\n")
-        self.csv_file.flush()
-        self.jsonl_file.flush()
+        with self.lock:
+            if self.closed:
+                return
+            for event in msg.events:
+                row = {
+                    "timestamp": event.header.stamp.to_sec(),
+                    "run_id": self.run_id,
+                    "token": event.token,
+                    "confidence": event.confidence,
+                    "x": event.spatial_anchor.x,
+                    "y": event.spatial_anchor.y,
+                    "z": event.spatial_anchor.z,
+                    "radius": event.radius,
+                    "start_time": event.start_time.to_sec(),
+                    "end_time": event.end_time.to_sec(),
+                    "evidence_channels": ";".join(event.evidence_channels),
+                    "risk_delta": event.risk_delta,
+                    "wait_recommended": event.wait_recommended,
+                    "detour_recommended": event.detour_recommended,
+                    "reject_recommended": event.reject_recommended,
+                    "reason": event.reason,
+                }
+                self.writer.writerow(row)
+                self.jsonl_file.write(json.dumps(row, ensure_ascii=True) + "\n")
+            self.csv_file.flush()
+            self.jsonl_file.flush()
 
     def close(self):
-        try:
-            self.csv_file.close()
-            self.jsonl_file.close()
-        except Exception:
-            pass
+        with self.lock:
+            self.closed = True
+            try:
+                self.csv_file.close()
+                self.jsonl_file.close()
+            except Exception:
+                pass
 
     def spin(self):
         rospy.spin()
@@ -93,4 +101,3 @@ class PAETEventLogger:
 
 if __name__ == "__main__":
     PAETEventLogger().spin()
-
