@@ -25,14 +25,16 @@
 - This is integration evidence only. It does not establish precision, recall, F1, or detector validity.
 - The observed clearance margin was `-0.004 m`, so the sample is especially sensitive to scan noise, footprint calibration, and threshold choice.
 - Commit `9a37b2b` added scan-rate event merging: one CSV/JSONL row now represents one event segment, with a default `0.75 s` gap threshold.
-- The segment logger passes local syntax checks; robot-side boundary validation is still required before metric collection.
+- Commit `7dee88b` added unique launch-time `run_id` values and a synthetic ROS validation helper.
+- Robot-side logger validation passed continuous merging, sub-gap merging, over-gap splitting, shutdown flush, unique `run_id`, and catkin build checks.
+- These checks validate logging semantics only; they do not provide token-detection performance evidence.
 
 ## Immediate Next Actions
 
-1. Validate segment logging on the robot: sub-gap merging, over-gap splitting, shutdown flush, and unique `run_id` handling.
-2. Run a stationary doorway-width calibration using measured wide, borderline, and narrow passages.
-3. Save event logs and ground-truth interval CSV files outside Git; register paths and run configuration in `experiment_registry.csv`.
-4. Check whether the current nearest-left/right scan rule produces false positives in open spaces and clutter.
+1. Run a stationary doorway-width calibration using measured wide, borderline, and narrow passages.
+2. Save event logs and ground-truth interval CSV files outside Git; register paths and run configuration in `experiment_registry.csv`.
+3. Check whether the current nearest-left/right scan rule produces false positives in open spaces and clutter.
+4. Freeze the first doorway detector thresholds only after documenting sensor and measurement error.
 5. Run the `temporary_obstacle` smoke test only after doorway logging and labeling are confirmed.
 
 ## Feasibility Review
