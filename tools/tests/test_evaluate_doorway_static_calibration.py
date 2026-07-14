@@ -100,6 +100,71 @@ class DoorwayCalibrationEvaluationTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "invalid estimate must have blank geometry"):
             summarize_trial(self.trial())
 
+    def test_frame_diagnostics_are_summarized_per_trial(self):
+        self.write_diagnostics([
+            {
+                "timestamp": "1.0",
+                "run_id": "run-1",
+                "estimate_valid": "true",
+                "estimated_width_m": "0.90",
+                "left_boundary_y_m": "0.45",
+                "right_boundary_y_m": "-0.45",
+                "required_width_m": "1.0",
+                "narrow_margin_threshold_m": "0.1",
+                "trigger_threshold_width_m": "1.1",
+                "clearance_margin_m": "-0.1",
+                "narrow_condition": "true",
+                "token_triggered": "false",
+                "decision": "min_duration_pending",
+            },
+            {
+                "timestamp": "1.1",
+                "run_id": "run-1",
+                "estimate_valid": "true",
+                "estimated_width_m": "1.00",
+                "left_boundary_y_m": "0.50",
+                "right_boundary_y_m": "-0.50",
+                "required_width_m": "1.0",
+                "narrow_margin_threshold_m": "0.1",
+                "trigger_threshold_width_m": "1.1",
+                "clearance_margin_m": "0.0",
+                "narrow_condition": "true",
+                "token_triggered": "false",
+                "decision": "min_duration_pending",
+            },
+        ])
+        trial = self.trial(should_trigger="true")
+        trial["scenario_type"] = "narrow"
+        trial["measured_width_m"] = "0.95"
+
+        summary = summarize_trial(trial)
+
+        self.assertEqual(summary["diagnostic_sample_count"], 2)
+        self.assertEqual(summary["min_duration_pending_count"], 2)
+        self.assertAlmostEqual(summary["observed_gap_width_m"], 0.95)
+        self.assertAlmostEqual(summary["width_error_m"], 0.0)
+        self.assertTrue(summary["missed_positive"])
+
+    def test_wrong_diagnostic_run_id_is_rejected(self):
+        self.write_diagnostics([{
+            "timestamp": "1.0",
+            "run_id": "another-run",
+            "estimate_valid": "false",
+            "estimated_width_m": "",
+            "left_boundary_y_m": "",
+            "right_boundary_y_m": "",
+            "required_width_m": "1.0",
+            "narrow_margin_threshold_m": "0.1",
+            "trigger_threshold_width_m": "1.1",
+            "clearance_margin_m": "",
+            "narrow_condition": "false",
+            "token_triggered": "false",
+            "decision": "no_valid_gap",
+        }])
+
+        with self.assertRaisesRegex(ValueError, "diagnostic CSV contains"):
+            summarize_trial(self.trial())
+
 
 if __name__ == "__main__":
     unittest.main()

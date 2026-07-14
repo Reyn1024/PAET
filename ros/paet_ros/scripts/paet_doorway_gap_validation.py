@@ -90,7 +90,9 @@ def main():
             messages = [
                 make_diagnostic(run_id, start, "no_valid_gap"),
                 make_diagnostic(run_id, start + rospy.Duration(0.1), "width_above_threshold", 1.3),
-                make_diagnostic(run_id, start + rospy.Duration(0.2), "token_triggered", 0.9, True),
+                make_diagnostic(run_id, start + rospy.Duration(0.2), "min_duration_pending", 0.9),
+                make_diagnostic(run_id, start + rospy.Duration(0.3), "token_triggered", 0.9, True),
+                make_diagnostic("wrong_run_id", start + rospy.Duration(0.4), "token_triggered", 0.8, True),
             ]
             for msg in messages:
                 pub.publish(msg)
@@ -102,17 +104,25 @@ def main():
         csv_path = Path(log_dir) / ("%s_doorway_gap.csv" % run_id)
         with csv_path.open(newline="", encoding="utf-8") as f:
             rows = list(csv.DictReader(f))
-        if len(rows) != 3:
-            raise AssertionError("expected 3 diagnostic rows, got %d" % len(rows))
+        if len(rows) != 4:
+            raise AssertionError("expected 4 accepted diagnostic rows, got %d" % len(rows))
         if any(row["run_id"] != run_id for row in rows):
             raise AssertionError("diagnostic CSV contains an unexpected run_id")
         if rows[0]["estimated_width_m"] != "":
             raise AssertionError("invalid estimate width must be blank")
         decisions = [row["decision"] for row in rows]
-        expected = ["no_valid_gap", "width_above_threshold", "token_triggered"]
+        expected = [
+            "no_valid_gap",
+            "width_above_threshold",
+            "min_duration_pending",
+            "token_triggered",
+        ]
         if decisions != expected:
             raise AssertionError("unexpected diagnostic decisions: %s" % decisions)
-        print("doorway-gap diagnostic logging ok: rows=3 run_id=%s" % run_id)
+        print(
+            "doorway-gap diagnostic logging ok: rows=4 rejected_wrong_run_id=1 run_id=%s" %
+            run_id
+        )
 
 
 if __name__ == "__main__":
