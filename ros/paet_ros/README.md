@@ -36,6 +36,10 @@ Logs:
 - `~/.ros/paet_logs/<run_id>_events.csv`
 - `~/.ros/paet_logs/<run_id>_events.jsonl`
 
+The logger writes one row per merged event segment. Repeated updates for the
+same token are merged until the token has been absent for `logging.segment_gap_s`
+seconds, so sustained detections do not appear as scan-rate duplicates.
+
 ## Safety
 
 V1 is read-only:

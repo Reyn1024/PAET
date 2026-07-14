@@ -34,4 +34,4 @@ temporary_obstacle:
 logging:
   run_id: paet_v1_dry_run
   log_dir: ~/.ros/paet_logs
-
+  segment_gap_s: 0.75
