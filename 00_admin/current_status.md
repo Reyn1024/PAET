@@ -28,15 +28,16 @@
 - Commit `7dee88b` added unique launch-time `run_id` values and a synthetic ROS validation helper.
 - Robot-side logger validation passed continuous merging, sub-gap merging, over-gap splitting, shutdown flush, unique `run_id`, and catkin build checks.
 - These checks validate logging semantics only; they do not provide token-detection performance evidence.
-- A scan-rate doorway-gap diagnostic stream and CSV logger are implemented locally and await robot-side build/runtime validation before calibration data collection.
+- The scan-rate doorway-gap diagnostic stream and CSV logger passed robot-side synthetic validation at revision `31c9489`, including all four decisions and wrong-`run_id` rejection.
+- The three-case stationary smoke gate passed for a 0.95 m narrow doorway, 2.70 m wide doorway, and open-area negative control; no false positives, misses, or fragmented events occurred in the accepted trials.
+- The narrow estimate was 0.861 m and a preliminary non-compliant setup missed the same doorway, confirming substantial placement and door-state sensitivity; this is smoke evidence, not detector accuracy.
 
 ## Immediate Next Actions
 
-1. Build and run the synthetic doorway-gap diagnostic validation on the robot.
-2. Run three short stationary smoke trials: narrow passage, wide passage, and open-area negative.
-3. Confirm the diagnostic CSV explains valid estimates, threshold decisions, and missing estimates before collecting the full 15-trial batch.
-4. For each accepted trial, record unique `run_id`, manual width, robot relative placement, config/threshold version, event and diagnostic CSV paths, and the manual should-trigger label.
-5. Do not move the robot, freeze thresholds, or compute task success rate until the static geometry calibration is reviewed.
+1. Run the full 15-trial stationary calibration: three each for narrow, borderline, wide, open-area negative, and clutter negative scenarios.
+2. For each trial, record unique `run_id`, manual width, robot relative placement, config/threshold version, event and diagnostic CSV paths, and the manual should-trigger label.
+3. Review placement sensitivity and width error before freezing doorway thresholds.
+4. Do not move the robot during a trial or compute task success rate from this calibration.
 
 ## Feasibility Review
 
